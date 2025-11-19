@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>WebGIS – Islas de calor urbano</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    crossorigin=""
+  ></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #eee;
+    }
+    header { padding: 1rem; background:#000; }
+    #map { height: 50vh; width: 100%; }
+    main { padding: 1rem; }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-top: 4px;
+      margin-bottom: 12px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background:#222;
+      color:#eee;
+    }
+    button {
+      background:#4ade80;
+      padding:10px 14px;
+      border-radius:8px;
+      font-weight:bold;
+      border:none;
+      cursor:pointer;
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <h1>WebGIS – Islas de calor urbano</h1>
+  <p>Mapa + formulario para registrar condiciones térmicas en tu ciudad.</p>
+</header>
+
+<div id="map"></div>
+
+<main>
+  <h2>Nuevo reporte ciudadano</h2>
+
+  <label>Latitud</label>
+  <input type="text" id="lat" readonly>
+  
+  <label>Longitud</label>
+  <input type="text" id="lng" readonly>
+
+  <label>Temperatura del aire (°C)</label>
+  <input type="number" id="temp" min="0" max="50">
+
+  <label>Humedad (%)</label>
+  <input type="number" id="hum" min="5" max="100">
+
+  <label>Sensación térmica (°C)</label>
+  <input type="number" id="sensacion" min="0" max="50">
+
+  <label>Tipo de superficie</label>
+  <select id="superficie">
+    <option>Asfalto</option>
+    <option>Pasto</option>
+    <option>Baldosa</option>
+    <option>Tierra</option>
+    <option>Parque</option>
+  </select>
+
+  <label>Nivel de sombra</label>
+  <select id="sombra">
+    <option>Sol directo</option>
+    <option>Sombra parcial</option>
+    <option>Sombra completa</option>
+  </select>
+
+  <label>Percepción del calor</label>
+  <select id="percepcion">
+    <option>1 (Muy frío)</option>
+    <option>2 (Frío)</option>
+    <option>3 (Agradable)</option>
+    <option>4 (Caluroso)</option>
+    <option>5 (Muy caluroso)</option>
+  </select>
+
+  <button onclick="alert('Esto es un DEMO. Luego conectamos el formulario a una base real.')">
+    Guardar reporte
+  </button>
+</main>
+
+<script>
+  const map = L.map('map').setView([-37.47, -72.35], 13);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(map);
+
+  const marker = L.marker([-37.47, -72.35], { draggable: true }).addTo(map);
+
+  function updateInputs(lat, lng) {
+    document.getElementById("lat").value = lat.toFixed(6);
+    document.getElementById("lng").value = lng.toFixed(6);
+  }
+
+  marker.on("moveend", (e) => {
+    const { lat, lng } = e.target.getLatLng();
+    updateInputs(lat, lng);
+  });
+
+  map.on("click", (e) => {
+    marker.setLatLng(e.latlng);
+    updateInputs(e.latlng.lat, e.latlng.lng);
+  });
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        let lat = pos.coords.latitude;
+        let lng = pos.coords.longitude;
+        map.setView([lat, lng], 15);
+        marker.setLatLng([lat, lng]);
+        updateInputs(lat, lng);
+      },
+      () => updateInputs(-37.47, -72.35)
+    );
+  }
+</script>
+
+</body>
+</html>
