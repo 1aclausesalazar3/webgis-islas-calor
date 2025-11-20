@@ -58,63 +58,91 @@
 <main>
   <h2>Nuevo reporte ciudadano</h2>
 
-  <label>Latitud</label>
-  <input type="text" id="lat" readonly>
-  
-  <label>Longitud</label>
-  <input type="text" id="lng" readonly>
+  <!-- FORMULARIO COMPLETO -->
+  <form id="reporte-form">
+    <label>Latitud</label>
+    <input type="text" id="lat" readonly>
 
-  <!-- Campo de Fecha y Hora -->
-  <label for="fecha-hora">Fecha y hora de la medición</label>
-  <input type="datetime-local" id="fecha-hora" name="fecha-hora" required>
+    <label>Longitud</label>
+    <input type="text" id="lng" readonly>
 
-  <!-- Mensaje explicativo -->
-  <p><strong>Recuerda:</strong> Los valores de temperatura, humedad y sensación térmica deben ser obtenidos desde tu aplicación de clima preferida (por ejemplo, Google Weather, AccuWeather, etc.).</p>
+    <!-- Campo de Fecha y Hora -->
+    <label for="fecha-hora">Fecha y hora de la medición</label>
+    <input type="datetime-local" id="fecha-hora" name="fecha-hora" required>
 
-  <label>Temperatura del aire (°C)</label>
-  <input type="number" id="temp" min="0" max="50">
+    <!-- Mensaje explicativo -->
+    <p><strong>Recuerda:</strong> Los valores de temperatura, humedad y sensación térmica deben ser obtenidos desde tu aplicación de clima preferida (por ejemplo, Google Weather, AccuWeather, etc.).</p>
 
-  <label>Humedad (%)</label>
-  <input type="number" id="hum" min="5" max="100">
+    <label>Temperatura del aire (°C)</label>
+    <input type="number" id="temp" min="0" max="50" required>
 
-  <label>Sensación térmica (°C)</label>
-  <input type="number" id="sensacion" min="0" max="50">
+    <label>Humedad (%)</label>
+    <input type="number" id="hum" min="5" max="100" required>
 
-  <label>Tipo de superficie</label>
-  <select id="superficie">
-    <option>Asfalto</option>
-    <option>Pasto</option>
-    <option>Baldosa</option>
-    <option>Tierra</option>
-    <option>Parque</option>
-  </select>
+    <label>Sensación térmica (°C)</label>
+    <input type="number" id="sensacion" min="0" max="50" required>
 
-  <label>Nivel de sombra</label>
-  <select id="sombra">
-    <option>Sol directo</option>
-    <option>Sombra parcial</option>
-    <option>Sombra completa</option>
-  </select>
+    <label>Tipo de superficie</label>
+    <select id="superficie" required>
+      <option value="">Selecciona una opción</option>
+      <option>Asfalto</option>
+      <option>Pasto</option>
+      <option>Baldosa</option>
+      <option>Tierra</option>
+      <option>Parque</option>
+    </select>
 
-  <label>Percepción del calor</label>
-  <select id="percepcion">
-    <option>1 (Muy frío)</option>
-    <option>2 (Frío)</option>
-    <option>3 (Agradable)</option>
-    <option>4 (Caluroso)</option>
-    <option>5 (Muy caluroso)</option>
-  </select>
+    <label>Nivel de sombra</label>
+    <select id="sombra" required>
+      <option value="">Selecciona una opción</option>
+      <option>Sol directo</option>
+      <option>Sombra parcial</option>
+      <option>Sombra completa</option>
+    </select>
 
-<label>Descripción del lugar</label>
-<textarea id="descripcion" rows="4" placeholder="Describe el entorno, materiales, vegetación, actividad humana, nivel de construcción, etc."></textarea>
+    <label>Percepción del calor</label>
+    <select id="percepcion" required>
+      <option value="">Selecciona una opción</option>
+      <option>1 (Muy frío)</option>
+      <option>2 (Frío)</option>
+      <option>3 (Agradable)</option>
+      <option>4 (Caluroso)</option>
+      <option>5 (Muy caluroso)</option>
+    </select>
 
-  <button onclick="alert('Este es un DEMO. Luego conectamos el formulario a una base real.')">
-    Guardar reporte
-  </button>
+    <!-- Descripción del lugar -->
+    <label>Descripción del lugar</label>
+    <textarea id="descripcion" rows="4"
+      placeholder="Describe el entorno, materiales, vegetación, actividad humana, nivel de construcción, etc."></textarea>
+
+    <button type="submit">
+      Guardar reporte
+    </button>
+  </form>
 </main>
 
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <script>
-  // Inicializar mapa
+  // CONFIGURACIÓN DE TU PROYECTO FIREBASE
+  const firebaseConfig = {
+    apiKey: "AIzaSyDxLCrOsxUPRBaD3SHwOpVQLWGxXZ971BU",
+    authDomain: "islas-de-calor-webgis.firebaseapp.com",
+    databaseURL: "https://islas-de-calor-webgis-default-rtdb.firebaseio.com",
+    projectId: "islas-de-calor-webgis",
+    storageBucket: "islas-de-calor-webgis.appspot.com",
+    messagingSenderId: "368570253562",
+    appId: "1:368570253562:web:5607156874c0139a090fcf",
+    measurementId: "G-1FBX7WE39F"
+  };
+
+  // Inicializar Firebase
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+
+  // ----- LEAFLET: MAPA Y MARCADOR -----
   const map = L.map('map').setView([-37.47, -72.35], 13);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -150,8 +178,38 @@
       () => updateInputs(-37.47, -72.35)
     );
   }
+
+  // ----- ENVÍO DEL FORMULARIO A FIREBASE -----
+  const form = document.getElementById('reporte-form');
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const data = {
+      lat: document.getElementById('lat').value,
+      lng: document.getElementById('lng').value,
+      fechaHora: document.getElementById('fecha-hora').value,
+      temp: document.getElementById('temp').value,
+      hum: document.getElementById('hum').value,
+      sensacion: document.getElementById('sensacion').value,
+      superficie: document.getElementById('superficie').value,
+      sombra: document.getElementById('sombra').value,
+      percepcion: document.getElementById('percepcion').value,
+      descripcion: document.getElementById('descripcion').value
+    };
+
+    // Guarda el reporte en /reportes en Realtime Database
+    database.ref('reportes').push(data)
+      .then(() => {
+        alert('¡Reporte enviado correctamente! Muchas gracias por tu aporte.');
+        form.reset();
+      })
+      .catch((error) => {
+        console.error(error);
+        alert('Hubo un error al enviar el reporte. Intenta nuevamente más tarde.');
+      });
+  });
 </script>
 
 </body>
 </html>
-
