@@ -81,6 +81,28 @@
     <label>Sensación térmica (°C)</label>
     <input type="number" id="sensacion" min="0" max="50" required>
 
+    <!-- 🔄 PRIMERO: ¿VIVIENDA O EXTERIOR? -->
+    <label>¿La medición se hizo en una vivienda?</label>
+    <select id="es_vivienda" required>
+      <option value="">Selecciona una opción</option>
+      <option value="no">No, en espacio exterior</option>
+      <option value="interior">Sí, dentro de una vivienda</option>
+      <option value="exterior_vivienda">Sí, afuera de una vivienda (patio/terraza)</option>
+    </select>
+
+    <!-- MATERIAL VIVIENDA -->
+    <label>Material predominante de la vivienda</label>
+    <select id="material_vivienda">
+      <option value="">No aplica / No sé</option>
+      <option>Hormigón o ladrillo</option>
+      <option>Madera</option>
+      <option>Adobe</option>
+      <option>Ligera (metálica/paneles)</option>
+      <option>Mixta</option>
+      <option>Departamento en edificio</option>
+    </select>
+
+    <!-- SUPERFICIE Y SOMBRA (SE ACTIVAN O NO SEGÚN RESPUESTA) -->
     <label>Tipo de superficie</label>
     <select id="superficie" required>
       <option value="">Selecciona una opción</option>
@@ -97,26 +119,6 @@
       <option>Sol directo</option>
       <option>Sombra parcial</option>
       <option>Sombra completa</option>
-    </select>
-
-    <!-- 🎯 NUEVA SECCIÓN: DATOS DE VIVIENDA -->
-    <label>¿La medición se hizo en una vivienda?</label>
-    <select id="es_vivienda" required>
-      <option value="">Selecciona una opción</option>
-      <option value="no">No, en espacio exterior</option>
-      <option value="interior">Sí, dentro de una vivienda</option>
-      <option value="exterior_vivienda">Sí, afuera de una vivienda (patio/terraza)</option>
-    </select>
-
-    <label>Material predominante de la vivienda</label>
-    <select id="material_vivienda">
-      <option value="">No aplica / No sé</option>
-      <option>Hormigón o ladrillo</option>
-      <option>Madera</option>
-      <option>Adobe</option>
-      <option>Ligera (metálica/paneles)</option>
-      <option>Mixta</option>
-      <option>Departamento en edificio</option>
     </select>
 
     <label>Percepción del calor</label>
@@ -190,6 +192,56 @@
     );
   }
 
+  // ----- LÓGICA: HABILITAR / DESHABILITAR CAMPOS SEGÚN VIVIENDA -----
+  const esViviendaSelect   = document.getElementById('es_vivienda');
+  const materialViviendaEl = document.getElementById('material_vivienda');
+  const superficieEl       = document.getElementById('superficie');
+  const sombraEl           = document.getElementById('sombra');
+
+  function actualizarCamposVivienda() {
+    const valor = esViviendaSelect.value;
+
+    if (valor === 'interior') {
+      // Interior de vivienda: importa el material, no superficie ni sombra
+      materialViviendaEl.disabled = false;
+
+      superficieEl.disabled = true;
+      superficieEl.required = false;
+      superficieEl.value = '';
+
+      sombraEl.disabled = true;
+      sombraEl.required = false;
+      sombraEl.value = '';
+    } else if (valor === 'no') {
+      // Espacio exterior: importa superficie/sombra, no material de vivienda
+      materialViviendaEl.disabled = true;
+      materialViviendaEl.value = '';
+
+      superficieEl.disabled = false;
+      superficieEl.required = true;
+
+      sombraEl.disabled = false;
+      sombraEl.required = true;
+    } else if (valor === 'exterior_vivienda') {
+      // Exterior inmediato a vivienda: nos sirve todo
+      materialViviendaEl.disabled = false;
+
+      superficieEl.disabled = false;
+      superficieEl.required = true;
+
+      sombraEl.disabled = false;
+      sombraEl.required = true;
+    } else {
+      // Sin seleccionar: dejar todo habilitado pero sin requerir nada extra
+      materialViviendaEl.disabled = false;
+      superficieEl.disabled = false;
+      sombraEl.disabled = false;
+    }
+  }
+
+  esViviendaSelect.addEventListener('change', actualizarCamposVivienda);
+  actualizarCamposVivienda(); // estado inicial
+
   // ----- ENVÍO DEL FORMULARIO A FIREBASE -----
   const form = document.getElementById('reporte-form');
 
@@ -205,21 +257,20 @@
       sensacion: document.getElementById('sensacion').value,
       superficie: document.getElementById('superficie').value,
       sombra: document.getElementById('sombra').value,
-
-      // NUEVOS CAMPOS
       es_vivienda: document.getElementById('es_vivienda').value,
       material_vivienda: document.getElementById('material_vivienda').value,
-
       percepcion: document.getElementById('percepcion').value,
       descripcion: document.getElementById('descripcion').value,
 
-      aprobado: false  // se revisa manualmente
+      // el reporte entra como NO aprobado
+      aprobado: false
     };
 
     database.ref('reportes').push(data)
       .then(() => {
         alert('¡Reporte enviado correctamente! Será revisado antes de publicarse.');
         form.reset();
+        actualizarCamposVivienda(); // restablecer estado de campos
       })
       .catch((error) => {
         console.error(error);
