@@ -70,8 +70,7 @@
     <label for="fecha-hora">Fecha y hora de la medición</label>
     <input type="datetime-local" id="fecha-hora" name="fecha-hora" required>
 
-    <!-- Mensaje explicativo -->
-    <p><strong>Recuerda:</strong> Los valores de temperatura, humedad y sensación térmica deben ser obtenidos desde tu aplicación de clima preferida (por ejemplo, Google Weather, AccuWeather, etc.).</p>
+    <p><strong>Recuerda:</strong> Los valores de temperatura, humedad y sensación térmica deben ser obtenidos desde tu aplicación de clima preferida.</p>
 
     <label>Temperatura del aire (°C)</label>
     <input type="number" id="temp" min="0" max="50" required>
@@ -110,14 +109,10 @@
       <option>5 (Muy caluroso)</option>
     </select>
 
-    <!-- Descripción del lugar -->
     <label>Descripción del lugar</label>
-    <textarea id="descripcion" rows="4"
-      placeholder="Describe el entorno, materiales, vegetación, actividad humana, nivel de construcción, etc."></textarea>
+    <textarea id="descripcion" rows="4" placeholder="Describe el entorno, materiales, vegetación, actividad humana, etc."></textarea>
 
-    <button type="submit">
-      Guardar reporte
-    </button>
+    <button type="submit">Guardar reporte</button>
   </form>
 </main>
 
@@ -126,7 +121,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-  // CONFIGURACIÓN DE TU PROYECTO FIREBASE
+  // CONFIGURACIÓN DE FIREBASE
   const firebaseConfig = {
     apiKey: "AIzaSyDxLCrOsxUPRBaD3SHwOpVQLWGxXZ971BU",
     authDomain: "islas-de-calor-webgis.firebaseapp.com",
@@ -138,16 +133,12 @@
     measurementId: "G-1FBX7WE39F"
   };
 
-  // Inicializar Firebase
   firebase.initializeApp(firebaseConfig);
   const database = firebase.database();
 
-  // ----- LEAFLET: MAPA Y MARCADOR -----
+  // ----- MAPA -----
   const map = L.map('map').setView([-37.47, -72.35], 13);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
-  }).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
   const marker = L.marker([-37.47, -72.35], { draggable: true }).addTo(map);
 
@@ -195,18 +186,20 @@
       superficie: document.getElementById('superficie').value,
       sombra: document.getElementById('sombra').value,
       percepcion: document.getElementById('percepcion').value,
-      descripcion: document.getElementById('descripcion').value
+      descripcion: document.getElementById('descripcion').value,
+
+      //el reporte entra como NO aprobado
+      aprobado: false
     };
 
-    // Guarda el reporte en /reportes en Realtime Database
     database.ref('reportes').push(data)
       .then(() => {
-        alert('¡Reporte enviado correctamente! Muchas gracias por tu aporte.');
+        alert('¡Reporte enviado correctamente! Será revisado antes de publicarse.');
         form.reset();
       })
       .catch((error) => {
         console.error(error);
-        alert('Hubo un error al enviar el reporte. Intenta nuevamente más tarde.');
+        alert('Hubo un error al enviar el reporte.');
       });
   });
 </script>
