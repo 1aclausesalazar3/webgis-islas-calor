@@ -99,6 +99,26 @@
       <option>Sombra completa</option>
     </select>
 
+    <!-- 🎯 NUEVA SECCIÓN: DATOS DE VIVIENDA -->
+    <label>¿La medición se hizo en una vivienda?</label>
+    <select id="es_vivienda" required>
+      <option value="">Selecciona una opción</option>
+      <option value="no">No, en espacio exterior</option>
+      <option value="interior">Sí, dentro de una vivienda</option>
+      <option value="exterior_vivienda">Sí, afuera de una vivienda (patio/terraza)</option>
+    </select>
+
+    <label>Material predominante de la vivienda</label>
+    <select id="material_vivienda">
+      <option value="">No aplica / No sé</option>
+      <option>Hormigón o ladrillo</option>
+      <option>Madera</option>
+      <option>Adobe</option>
+      <option>Ligera (metálica/paneles)</option>
+      <option>Mixta</option>
+      <option>Departamento en edificio</option>
+    </select>
+
     <label>Percepción del calor</label>
     <select id="percepcion" required>
       <option value="">Selecciona una opción</option>
@@ -185,11 +205,15 @@
       sensacion: document.getElementById('sensacion').value,
       superficie: document.getElementById('superficie').value,
       sombra: document.getElementById('sombra').value,
+
+      // NUEVOS CAMPOS
+      es_vivienda: document.getElementById('es_vivienda').value,
+      material_vivienda: document.getElementById('material_vivienda').value,
+
       percepcion: document.getElementById('percepcion').value,
       descripcion: document.getElementById('descripcion').value,
 
-      //el reporte entra como NO aprobado
-      aprobado: false
+      aprobado: false  // se revisa manualmente
     };
 
     database.ref('reportes').push(data)
