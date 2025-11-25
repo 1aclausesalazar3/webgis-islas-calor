@@ -170,8 +170,17 @@
       if (rep.sensacion) {
         html += `<strong>Sensación térmica:</strong> ${rep.sensacion} °C<br>`;
       }
+      if (rep.hum) {
+        html += `<strong>Humedad relativa:</strong> ${rep.hum} %<br>`;
+      }
+      if (rep.percepcion) {
+        html += `<strong>Percepción:</strong> ${rep.percepcion}<br>`;
+      }
       if (rep.fechaHora) {
         html += `<strong>Fecha y hora:</strong> ${rep.fechaHora}<br>`;
+      }
+      if (rep.descripcion) {
+        html += `<strong>Descripción:</strong> ${rep.descripcion}<br>`;
       }
 
       if (rep.es_vivienda === 'interior') {
@@ -204,25 +213,62 @@
       return html;
     }
 
-    // Escuchar cambios en /reportes
-    database.ref("reportes").on("value", (snapshot) => {
+    // Escuchar cambios en la BD (soporta datos en raíz o dentro de "reportes")
+    database.ref().on("value", (snapshot) => {
       const datos = snapshot.val();
+      console.log("📡 Datos crudos desde Firebase:", datos);
 
       // Limpiar marcadores previos
       reportMarkers.forEach(m => map.removeLayer(m));
       reportMarkers = [];
 
-      if (!datos) return;
+      if (!datos) {
+        console.warn("⚠ No hay datos en la BD");
+        return;
+      }
 
-      for (let id in datos) {
-        const rep = datos[id];
+      // Si los datos vienen como { reportes: { -id: {...} } } usa esa rama;
+      // si no, asume que cada hijo en la raíz es un reporte
+      const reportes = datos.reportes ?? datos;
+      console.log("🗂 Reportes usados:", reportes);
+
+      for (let id in reportes) {
+        const rep = reportes[id];
+
+        if (!rep || typeof rep !== 'object') continue;
+
+        // Interpretar el campo "aprobado" de forma flexible
+        const aprobado =
+          rep.aprobado === true ||
+          rep.aprobado === 'true' ||
+          rep.aprobado === 'True' ||
+          rep.aprobado === 'TRUE' ||
+          rep.aprobado === 'si' ||
+          rep.aprobado === 'Si' ||
+          rep.aprobado === 'SI' ||
+          rep.aprobado === 1 ||
+          rep.aprobado === '1';
 
         // Solo mostrar puntos aprobados
-        if (!rep.aprobado) continue;
+        if (!aprobado) continue;
 
-        const lat = parseFloat(rep.lat);
-        const lng = parseFloat(rep.lng);
-        if (isNaN(lat) || isNaN(lng)) continue;
+        // Soportar distintos nombres de campos para lat/lng
+        const lat = parseFloat(
+          rep.lat ??
+          rep.latitude ??
+          rep.latitud
+        );
+        const lng = parseFloat(
+          rep.lng ??
+          rep.lon ??
+          rep.longitud ??
+          rep.longitude
+        );
+
+        if (isNaN(lat) || isNaN(lng)) {
+          console.warn("❌ Reporte sin lat/lng válidos:", id, rep);
+          continue;
+        }
 
         const color = getColorFromTemp(rep.temp);
 
