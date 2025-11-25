@@ -65,6 +65,7 @@
       font-size: 0.85rem;
       line-height: 1.4;
       max-width: 220px;
+      z-index: 1000;
     }
     .leyenda-item {
       display: flex;
@@ -135,37 +136,29 @@
 
     // BOTÓN "APORTAR" → abre el formulario en nueva pestaña
     document.getElementById('btn-aportar').addEventListener('click', () => {
-      // Asegúrate de que tu formulario se llame "formulario.html" en el mismo repo
       window.open('formulario.html', '_blank');
     });
 
     // ----- MAPA -----
-    // Centro aproximado de Chile
     const map = L.map('map').setView([-35, -71], 5);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19
     }).addTo(map);
 
-    // Para almacenar marcadores actuales y poder limpiarlos
     let reportMarkers = [];
 
-    // Función para definir color según temperatura
     function getColorFromTemp(tempStr) {
-      if (!tempStr && tempStr !== 0) return '#9ca3af'; // gris si no hay dato
-
+      if (!tempStr && tempStr !== 0) return '#9ca3af';
       const t = parseFloat(tempStr);
       if (isNaN(t)) return '#9ca3af';
-
-      if (t < 20) return '#3b82f6';      // azul
-      else if (t < 27) return '#facc15'; // amarillo
-      else return '#ef4444';             // rojo
+      if (t < 20) return '#3b82f6';
+      else if (t < 27) return '#facc15';
+      else return '#ef4444';
     }
 
-    // Función para armar el contenido del popup según tipo de reporte
     function buildPopupContent(rep) {
       let html = '';
-
       html += `<strong>Temperatura:</strong> ${rep.temp ?? 'N/D'} °C<br>`;
       if (rep.sensacion) {
         html += `<strong>Sensación térmica:</strong> ${rep.sensacion} °C<br>`;
@@ -200,7 +193,6 @@
           html += `<strong>Sombra:</strong> ${rep.sombra}<br>`;
         }
       } else {
-        // "no" → espacio exterior
         html += `<strong>Ubicación:</strong> Espacio exterior urbano<br>`;
         if (rep.superficie) {
           html += `<strong>Superficie:</strong> ${rep.superficie}<br>`;
@@ -213,79 +205,79 @@
       return html;
     }
 
-    // Escuchar cambios en la BD (soporta datos en raíz o dentro de "reportes")
-    database.ref().on("value", (snapshot) => {
-      const datos = snapshot.val();
-      console.log("📡 Datos crudos desde Firebase:", datos);
+    // LEER SIEMPRE DESDE LA RAÍZ
+    database.ref().on(
+      "value",
+      (snapshot) => {
+        const datos = snapshot.val();
+        console.log("📡 Datos crudos desde Firebase:", datos);
 
-      // Limpiar marcadores previos
-      reportMarkers.forEach(m => map.removeLayer(m));
-      reportMarkers = [];
+        // limpiar marcadores
+        reportMarkers.forEach(m => map.removeLayer(m));
+        reportMarkers = [];
 
-      if (!datos) {
-        console.warn("⚠ No hay datos en la BD");
-        return;
-      }
-
-      // Si los datos vienen como { reportes: { -id: {...} } } usa esa rama;
-      // si no, asume que cada hijo en la raíz es un reporte
-      const reportes = datos.reportes ?? datos;
-      console.log("🗂 Reportes usados:", reportes);
-
-      for (let id in reportes) {
-        const rep = reportes[id];
-
-        if (!rep || typeof rep !== 'object') continue;
-
-        // Interpretar el campo "aprobado" de forma flexible
-        const aprobado =
-          rep.aprobado === true ||
-          rep.aprobado === 'true' ||
-          rep.aprobado === 'True' ||
-          rep.aprobado === 'TRUE' ||
-          rep.aprobado === 'si' ||
-          rep.aprobado === 'Si' ||
-          rep.aprobado === 'SI' ||
-          rep.aprobado === 1 ||
-          rep.aprobado === '1';
-
-        // Solo mostrar puntos aprobados
-        if (!aprobado) continue;
-
-        // Soportar distintos nombres de campos para lat/lng
-        const lat = parseFloat(
-          rep.lat ??
-          rep.latitude ??
-          rep.latitud
-        );
-        const lng = parseFloat(
-          rep.lng ??
-          rep.lon ??
-          rep.longitud ??
-          rep.longitude
-        );
-
-        if (isNaN(lat) || isNaN(lng)) {
-          console.warn("❌ Reporte sin lat/lng válidos:", id, rep);
-          continue;
+        if (!datos) {
+          console.warn("⚠ No hay datos en la BD");
+          return;
         }
 
-        const color = getColorFromTemp(rep.temp);
+        // si existe nodo "reportes", úsalo; si no, usa raíz
+        const reportes = datos.reportes ?? datos;
+        console.log("🗂 Reportes usados:", reportes);
 
-        const marker = L.circleMarker([lat, lng], {
-          radius: 6,
-          color: color,
-          weight: 2,
-          fillColor: color,
-          fillOpacity: 0.9
-        }).addTo(map);
+        const bounds = [];
 
-        const popupHtml = buildPopupContent(rep);
-        marker.bindPopup(popupHtml);
+        for (let id in reportes) {
+          const rep = reportes[id];
+          if (!rep || typeof rep !== "object") continue;
 
-        reportMarkers.push(marker);
+          const aprobado =
+            rep.aprobado === true ||
+            rep.aprobado === 'true' ||
+            rep.aprobado === 'True' ||
+            rep.aprobado === 'TRUE' ||
+            rep.aprobado === 'si' ||
+            rep.aprobado === 'Si' ||
+            rep.aprobado === 'SI' ||
+            rep.aprobado === 1 ||
+            rep.aprobado === '1';
+
+          if (!aprobado) continue;
+
+          const lat = parseFloat(rep.lat ?? rep.latitude ?? rep.latitud);
+          const lng = parseFloat(rep.lng ?? rep.lon ?? rep.longitud ?? rep.longitude);
+
+          if (isNaN(lat) || isNaN(lng)) {
+            console.warn("❌ Reporte sin lat/lng válidos:", id, rep);
+            continue;
+          }
+
+          const color = getColorFromTemp(rep.temp);
+          console.log("✅ Marcador aprobado:", id, lat, lng, "temp:", rep.temp);
+
+          const marker = L.circleMarker([lat, lng], {
+            radius: 6,
+            color: color,
+            weight: 2,
+            fillColor: color,
+            fillOpacity: 0.9
+          }).addTo(map);
+
+          marker.bindPopup(buildPopupContent(rep));
+          reportMarkers.push(marker);
+          bounds.push([lat, lng]);
+        }
+
+        if (bounds.length > 0) {
+          map.fitBounds(bounds, { padding: [30, 30] });
+        } else {
+          console.warn("⚠ No se creó ningún marcador (¿no hay reportes aprobados?)");
+        }
+      },
+      (error) => {
+        console.error("🚨 Error al leer Firebase:", error);
       }
-    });
+    );
   </script>
 
 </body>
