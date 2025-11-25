@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>WebGIS – Islas de calor urbano (Visor)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    crossorigin=""
+  ></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #eee;
+    }
+    header {
+      padding: 0.8rem 1rem;
+      background: #000;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+    header p {
+      margin: 0;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+    #btn-aportar {
+      background:#4ade80;
+      padding:8px 14px;
+      border-radius:8px;
+      font-weight:bold;
+      border:none;
+      cursor:pointer;
+      white-space: nowrap;
+    }
+    #map {
+      height: calc(100vh - 60px);
+      width: 100%;
+    }
+    /* Panel flotante para leyenda */
+    .panel-leyenda {
+      position: absolute;
+      top: 80px;
+      right: 10px;
+      background: rgba(0,0,0,0.8);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      max-width: 220px;
+    }
+    .leyenda-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .color-circulo {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .color-frio { background: #3b82f6; }    /* azul */
+    .color-templado { background: #facc15; }/* amarillo */
+    .color-caliente { background: #ef4444; }/* rojo */
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>
+      <h1>WebGIS – Islas de calor urbano</h1>
+      <p>Visor de reportes ciudadanos de temperatura en Chile (solo puntos aprobados).</p>
+    </div>
+    <button id="btn-aportar">📝 Aportar medición</button>
+  </header>
+
+  <div id="map"></div>
+
+  <!-- Panel flotante de leyenda -->
+  <div class="panel-leyenda">
+    <strong>Clasificación por temperatura</strong><br>
+    <div class="leyenda-item">
+      <span class="color-circulo color-frio"></span> Menos de 20 °C
+    </div>
+    <div class="leyenda-item">
+      <span class="color-circulo color-templado"></span> 20 a 27 °C
+    </div>
+    <div class="leyenda-item">
+      <span class="color-circulo color-caliente"></span> Más de 27 °C
+    </div>
+    <hr style="border-color:#333;">
+    <small>
+      Cada punto representa un reporte ciudadano.<br>
+      Solo se muestran reportes revisados y aprobados.
+    </small>
+  </div>
+
+  <!-- Firebase compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <script>
+    // CONFIGURACIÓN DE FIREBASE (misma que el formulario)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDxLCrOsxUPRBaD3SHwOpVQLWGxXZ971BU",
+      authDomain: "islas-de-calor-webgis.firebaseapp.com",
+      databaseURL: "https://islas-de-calor-webgis-default-rtdb.firebaseio.com",
+      projectId: "islas-de-calor-webgis",
+      storageBucket: "islas-de-calor-webgis.appspot.com",
+      messagingSenderId: "368570253562",
+      appId: "1:368570253562:web:5607156874c0139a090fcf",
+      measurementId: "G-1FBX7WE39F"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // BOTÓN "APORTAR" → abre el formulario en nueva pestaña
+    document.getElementById('btn-aportar').addEventListener('click', () => {
+      // Asegúrate de que tu formulario se llame "formulario.html" en el mismo repo
+      window.open('formulario.html', '_blank');
+    });
+
+    // ----- MAPA -----
+    // Centro aproximado de Chile
+    const map = L.map('map').setView([-35, -71], 5);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
+
+    // Para almacenar marcadores actuales y poder limpiarlos
+    let reportMarkers = [];
+
+    // Función para definir color según temperatura
+    function getColorFromTemp(tempStr) {
+      if (!tempStr && tempStr !== 0) return '#9ca3af'; // gris si no hay dato
+
+      const t = parseFloat(tempStr);
+      if (isNaN(t)) return '#9ca3af';
+
+      if (t < 20) return '#3b82f6';      // azul
+      else if (t < 27) return '#facc15'; // amarillo
+      else return '#ef4444';             // rojo
+    }
+
+    // Función para armar el contenido del popup según tipo de reporte
+    function buildPopupContent(rep) {
+      let html = '';
+
+      html += `<strong>Temperatura:</strong> ${rep.temp ?? 'N/D'} °C<br>`;
+      if (rep.sensacion) {
+        html += `<strong>Sensación térmica:</strong> ${rep.sensacion} °C<br>`;
+      }
+      if (rep.fechaHora) {
+        html += `<strong>Fecha y hora:</strong> ${rep.fechaHora}<br>`;
+      }
+
+      if (rep.es_vivienda === 'interior') {
+        html += `<strong>Ubicación:</strong> Interior de vivienda<br>`;
+        if (rep.material_vivienda) {
+          html += `<strong>Material vivienda:</strong> ${rep.material_vivienda}<br>`;
+        }
+      } else if (rep.es_vivienda === 'exterior_vivienda') {
+        html += `<strong>Ubicación:</strong> Exterior cercano a vivienda<br>`;
+        if (rep.material_vivienda) {
+          html += `<strong>Material vivienda:</strong> ${rep.material_vivienda}<br>`;
+        }
+        if (rep.superficie) {
+          html += `<strong>Superficie:</strong> ${rep.superficie}<br>`;
+        }
+        if (rep.sombra) {
+          html += `<strong>Sombra:</strong> ${rep.sombra}<br>`;
+        }
+      } else {
+        // "no" → espacio exterior
+        html += `<strong>Ubicación:</strong> Espacio exterior urbano<br>`;
+        if (rep.superficie) {
+          html += `<strong>Superficie:</strong> ${rep.superficie}<br>`;
+        }
+        if (rep.sombra) {
+          html += `<strong>Nivel de sombra:</strong> ${rep.sombra}<br>`;
+        }
+      }
+
+      return html;
+    }
+
+    // Escuchar cambios en /reportes
+    database.ref("reportes").on("value", (snapshot) => {
+      const datos = snapshot.val();
+
+      // Limpiar marcadores previos
+      reportMarkers.forEach(m => map.removeLayer(m));
+      reportMarkers = [];
+
+      if (!datos) return;
+
+      for (let id in datos) {
+        const rep = datos[id];
+
+        // Solo mostrar puntos aprobados
+        if (!rep.aprobado) continue;
+
+        const lat = parseFloat(rep.lat);
+        const lng = parseFloat(rep.lng);
+        if (isNaN(lat) || isNaN(lng)) continue;
+
+        const color = getColorFromTemp(rep.temp);
+
+        const marker = L.circleMarker([lat, lng], {
+          radius: 6,
+          color: color,
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 0.9
+        }).addTo(map);
+
+        const popupHtml = buildPopupContent(rep);
+        marker.bindPopup(popupHtml);
+
+        reportMarkers.push(marker);
+      }
+    });
+  </script>
+
+</body>
+</html>
