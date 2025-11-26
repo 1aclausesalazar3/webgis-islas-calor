@@ -68,3 +68,295 @@
       cursor:pointer;
       margin-top:8px;
     }
+    button:hover {
+      background:#22c55e;
+    }
+    .ayuda {
+      display:block;
+      font-size:0.75rem;
+      color:#a3a3a3;
+      margin-top:-4px;
+      margin-bottom:8px;
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <h1>Nuevo reporte ciudadano</h1>
+  <p>Indica tu ubicación en el mapa y rellena los datos térmicos de tu entorno.</p>
+</header>
+
+<div id="map"></div>
+
+<main>
+  <!-- FORMULARIO COMPLETO -->
+  <form id="reporte-form">
+    <label>Latitud</label>
+    <input type="text" id="lat" readonly>
+
+    <label>Longitud</label>
+    <input type="text" id="lng" readonly>
+
+    <!-- Campo de Fecha y Hora -->
+    <label for="fecha-hora">Fecha y hora de la medición</label>
+    <input type="datetime-local" id="fecha-hora" name="fecha-hora" required>
+
+    <p><strong>Recuerda:</strong> Los valores de temperatura, humedad y sensación térmica deben ser obtenidos desde tu aplicación de clima preferida (Google Weather, AccuWeather, etc.).</p>
+
+    <label>Temperatura del aire (°C)</label>
+    <input type="number" id="temp" min="-20" max="60" step="0.1" required>
+
+    <label>Humedad (%)</label>
+    <input type="number" id="hum" min="0" max="100" step="1" required>
+
+    <label>Sensación térmica (°C)</label>
+    <input type="number" id="sensacion" min="-20" max="60" step="0.1" required>
+
+    <!-- PRIMERO: ¿VIVIENDA O EXTERIOR? -->
+    <label>¿La medición se hizo en una vivienda?</label>
+    <select id="es_vivienda" required>
+      <option value="">Selecciona una opción</option>
+      <option value="no">No, en espacio exterior</option>
+      <option value="interior">Sí, dentro de una vivienda</option>
+      <option value="exterior_vivienda">Sí, afuera de una vivienda (patio/terraza)</option>
+    </select>
+
+    <!-- MATERIAL VIVIENDA -->
+    <label>Material predominante de la vivienda</label>
+    <select id="material_vivienda">
+      <option value="">No aplica / No sé</option>
+      <option>Hormigón o ladrillo</option>
+      <option>Madera</option>
+      <option>Adobe</option>
+      <option>Ligera (metálica/paneles)</option>
+      <option>Mixta</option>
+      <option>Departamento en edificio</option>
+    </select>
+    <small id="ayuda-material" class="ayuda"></small>
+
+    <!-- SUPERFICIE -->
+    <label for="superficie">Tipo de superficie</label>
+    <select id="superficie" required>
+      <option value="">Selecciona una opción</option>
+      <option>Asfalto</option>
+      <option>Pasto</option>
+      <option>Baldosa</option>
+      <option>Tierra</option>
+      <option>Parque</option>
+    </select>
+    <small id="ayuda-superficie" class="ayuda"></small>
+
+    <!-- NIVEL DE SOMBRA -->
+    <label for="sombra">Nivel de sombra</label>
+    <select id="sombra" required>
+      <option value="">Selecciona una opción</option>
+      <option>Sol directo</option>
+      <option>Sombra parcial</option>
+      <option>Sombra completa</option>
+    </select>
+    <small id="ayuda-sombra" class="ayuda"></small>
+
+    <label>Percepción del calor</label>
+    <select id="percepcion" required>
+      <option value="">Selecciona una opción</option>
+      <option>1 (Muy frío)</option>
+      <option>2 (Frío)</option>
+      <option>3 (Agradable)</option>
+      <option>4 (Caluroso)</option>
+      <option>5 (Muy caluroso)</option>
+    </select>
+
+    <label>Descripción del lugar</label>
+    <textarea id="descripcion" rows="4" placeholder="Describe el entorno, materiales, vegetación, actividad humana, etc. (opcional)"></textarea>
+
+    <button type="submit">Guardar reporte</button>
+  </form>
+</main>
+
+<script>
+  // ==========================
+  // CONFIGURACIÓN FIREBASE
+  // ==========================
+  const firebaseConfig = {
+    apiKey: "AIzaSyDxLCrOsxUPRBaD3SHwOpVQLWGxXZ971BU",
+    authDomain: "islas-de-calor-webgis.firebaseapp.com",
+    databaseURL: "https://islas-de-calor-webgis-default-rtdb.firebaseio.com",
+    projectId: "islas-de-calor-webgis",
+    storageBucket: "islas-de-calor-webgis.appspot.com",
+    messagingSenderId: "368570253562",
+    appId: "1:368570253562:web:5607156874c0139a090fcf",
+    measurementId: "G-1FBX7WE39F"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+
+  // ==========================
+  // MAPA (Leaflet)
+  // ==========================
+  const map = L.map('map').setView([-37.47, -72.35], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(map);
+
+  const marker = L.marker([-37.47, -72.35], { draggable: true }).addTo(map);
+
+  function updateInputs(lat, lng) {
+    document.getElementById("lat").value = lat.toFixed(6);
+    document.getElementById("lng").value = lng.toFixed(6);
+  }
+
+  marker.on("moveend", (e) => {
+    const { lat, lng } = e.target.getLatLng();
+    updateInputs(lat, lng);
+  });
+
+  map.on("click", (e) => {
+    marker.setLatLng(e.latlng);
+    updateInputs(e.latlng.lat, e.latlng.lng);
+  });
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        let lat = pos.coords.latitude;
+        let lng = pos.coords.longitude;
+        map.setView([lat, lng], 15);
+        marker.setLatLng([lat, lng]);
+        updateInputs(lat, lng);
+      },
+      () => updateInputs(-37.47, -72.35)
+    );
+  }
+
+  // ==========================
+  // BLOQUEAR 'e', '+', '-' EN CAMPOS NUMÉRICOS DE CLIMA
+  // ==========================
+  const climaIds = ['temp', 'hum', 'sensacion'];
+  climaIds.forEach(id => {
+    const el = document.getElementById(id);
+
+    // Bloquea teclas e/E/+/-
+    el.addEventListener('keydown', (e) => {
+      if (['e', 'E', '+', '-'].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    // Limpia caracteres raros si llegan a colarse (pegado)
+    el.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^0-9.,-]/g, '');
+    });
+  });
+
+  // ==========================
+  // LÓGICA VIVIENDA / EXTERIOR
+  // ==========================
+  const esViviendaSelect   = document.getElementById('es_vivienda');
+  const materialViviendaEl = document.getElementById('material_vivienda');
+  const superficieEl       = document.getElementById('superficie');
+  const sombraEl           = document.getElementById('sombra');
+  const ayudaMaterialEl    = document.getElementById('ayuda-material');
+  const ayudaSuperficieEl  = document.getElementById('ayuda-superficie');
+  const ayudaSombraEl      = document.getElementById('ayuda-sombra');
+
+  function actualizarCamposVivienda() {
+    const valor = esViviendaSelect.value;
+
+    if (valor === 'interior') {
+      // Interior de vivienda: importa el material, NO superficie/sombra
+      materialViviendaEl.disabled = false;
+      ayudaMaterialEl.textContent = 'Indica el material principal de tu vivienda.';
+
+      superficieEl.disabled = true;
+      superficieEl.required = false;
+      superficieEl.value = '';
+      ayudaSuperficieEl.textContent = 'No es necesario responder esta pregunta para mediciones dentro de una vivienda.';
+
+      sombraEl.disabled = true;
+      sombraEl.required = false;
+      sombraEl.value = '';
+      ayudaSombraEl.textContent = 'No es necesario responder esta pregunta para mediciones dentro de una vivienda.';
+
+    } else if (valor === 'no') {
+      // Espacio exterior abierto: superficie y sombra obligatorias, material no aplica
+      materialViviendaEl.disabled = true;
+      materialViviendaEl.value = '';
+      ayudaMaterialEl.textContent = 'No es necesario para mediciones en espacio exterior abierto.';
+
+      superficieEl.disabled = false;
+      superficieEl.required = true;
+      ayudaSuperficieEl.textContent = 'Obligatorio para mediciones en exterior (calle, plaza, parque, etc.).';
+
+      sombraEl.disabled = false;
+      sombraEl.required = true;
+      ayudaSombraEl.textContent = 'Obligatorio para mediciones en exterior (calle, plaza, parque, etc.).';
+
+    } else if (valor === 'exterior_vivienda') {
+      // Exterior inmediato a vivienda (patio/terraza): todo aplica
+      materialViviendaEl.disabled = false;
+      ayudaMaterialEl.textContent = 'Puedes indicar el material de la vivienda cercana, si lo conoces.';
+
+      superficieEl.disabled = false;
+      superficieEl.required = true;
+      ayudaSuperficieEl.textContent = 'Obligatorio para describir el entorno exterior de la vivienda (patio o terraza).';
+
+      sombraEl.disabled = false;
+      sombraEl.required = true;
+      ayudaSombraEl.textContent = 'Obligatorio para indicar si el patio/terraza está a sol directo o sombra.';
+
+    } else {
+      // Sin seleccionar aún
+      materialViviendaEl.disabled = false;
+      superficieEl.disabled = false;
+      sombraEl.disabled = false;
+      ayudaMaterialEl.textContent = '';
+      ayudaSuperficieEl.textContent = '';
+      ayudaSombraEl.textContent = '';
+    }
+  }
+
+  esViviendaSelect.addEventListener('change', actualizarCamposVivienda);
+  actualizarCamposVivienda(); // estado inicial
+
+  // ==========================
+  // ENVÍO DEL FORMULARIO A FIREBASE
+  // ==========================
+  const form = document.getElementById('reporte-form');
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const data = {
+      lat: document.getElementById('lat').value,
+      lng: document.getElementById('lng').value,
+      fechaHora: document.getElementById('fecha-hora').value,
+      temp: document.getElementById('temp').value,
+      hum: document.getElementById('hum').value,
+      sensacion: document.getElementById('sensacion').value,
+      superficie: document.getElementById('superficie').value,
+      sombra: document.getElementById('sombra').value,
+      es_vivienda: document.getElementById('es_vivienda').value,
+      material_vivienda: document.getElementById('material_vivienda').value,
+      percepcion: document.getElementById('percepcion').value,
+      descripcion: document.getElementById('descripcion').value,
+      // el reporte entra como NO aprobado
+      aprobado: false
+    };
+
+    database.ref('reportes').push(data)
+      .then(() => {
+        alert('¡Reporte enviado correctamente! Será revisado antes de publicarse.');
+        form.reset();
+        actualizarCamposVivienda(); // restablecer estado de campos
+      })
+      .catch((error) => {
+        console.error(error);
+        alert('Hubo un error al enviar el reporte.');
+      });
+  });
+</script>
+
+</body>
+</html>
