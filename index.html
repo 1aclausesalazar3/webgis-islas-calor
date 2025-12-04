@@ -294,6 +294,7 @@
       return 'caliente';
     }
 
+    // 🔴 DESCRIPCIÓN OCULTA: solo info relevante + mensaje genérico
     function buildPopupContent(rep) {
       let html = '';
       html += `<strong>Temperatura:</strong> ${rep.temp ?? 'N/D'} °C<br>`;
@@ -317,9 +318,8 @@
       html += `<strong>Tipo de superficie:</strong> ${rep.superficie || '-'}<br>`;
       html += `<strong>Nivel de sombra:</strong> ${rep.sombra || '-'}<br>`;
 
-      if (rep.descripcion) {
-        html += `<hr><strong>Descripción:</strong><br>${rep.descripcion}`;
-      }
+      // 👇 Ya NO se muestra rep.descripcion (solo admin la ve en Firebase)
+      html += `<hr><em>Reporte ciudadano validado</em>`;
 
       return html;
     }
@@ -342,7 +342,6 @@
         .map(chk => chk.value);
 
       const bounds = [];
-
       let mostrados = 0;
 
       allReports.forEach(item => {
@@ -377,7 +376,6 @@
         firstFit = false;
       }
 
-      // actualizar solo el contador de mostrados (los otros se actualizan al leer Firebase)
       const totalBase = parseInt(document.getElementById('total-reportes').textContent, 10) || 0;
       const totalAprobados = parseInt(document.getElementById('total-aprobados').textContent, 10) || 0;
       actualizarContadores(totalBase, totalAprobados, mostrados);
