@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>WebGIS – Islas de calor urbano</title>
+  <title>WebGIS – Islas de calor urbano (Visor)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Leaflet -->
@@ -10,15 +10,11 @@
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     crossorigin=""
-  /> 
+  />
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     crossorigin=""
   ></script>
-
-  <!-- Firebase compat SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
   <style>
     body {
@@ -28,209 +24,422 @@
       color: #eee;
     }
     header {
-      padding: 0.75rem 1rem;
-      background:#000;
-      display:flex;
+      padding: 0.8rem 1rem;
+      background: #000;
+      display: flex;
       justify-content: space-between;
-      align-items:center;
-      gap:1rem;
+      align-items: center;
+      gap: 1rem;
       flex-wrap: wrap;
     }
-    h1 {
-      font-size:1rem;
-      margin:0;
+    header h1 {
+      margin: 0;
+      font-size: 1.2rem;
     }
     header p {
-      margin:0;
-      font-size:0.85rem;
-      opacity:0.8;
+      margin: 0;
+      font-size: 0.9rem;
+      opacity: 0.8;
     }
-    .header-left {
-      display:flex;
-      flex-direction:column;
-      gap:2px;
-    }
-    .pill {
-      display:inline-block;
-      padding:2px 8px;
-      border-radius:999px;
-      font-size:0.7rem;
-      background:#222;
-      margin-top:4px;
-    }
-    .btn-aportar {
-      background:#22c55e;
+    #btn-aportar {
+      background:#4ade80;
       padding:8px 14px;
-      border-radius:999px;
+      border-radius:8px;
       font-weight:bold;
       border:none;
       cursor:pointer;
-      color:#022c22;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      text-decoration:none;
       white-space: nowrap;
     }
-    .btn-aportar:hover {
-      background:#16a34a;
+
+    /* Barra de info debajo del header */
+    .bar-info {
+      background: #111827;
+      padding: 6px 12px;
+      font-size: 0.9rem;
+      border-bottom: 1px solid #1f2937;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
     }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #1f2937;
+      font-size: 0.8rem;
+    }
+    .badge-label {
+      opacity: 0.7;
+    }
+
     #map {
-      height: calc(100vh - 90px);
+      height: calc(100vh - 96px);
       width: 100%;
     }
-    #status {
-      font-size:0.8rem;
-      padding:0.25rem 1rem 0.5rem 1rem;
-      background:#050505;
-      border-top:1px solid #222;
-      color:#a3a3a3;
+
+    /* Panel flotante para filtros (izquierda) */
+    .panel-controles {
+      position: absolute;
+      top: 100px;
+      left: 10px;
+      background: rgba(0,0,0,0.85);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      max-width: 260px;
+      z-index: 1000;
     }
-    #status strong {
-      color:#e5e5e5;
+    .panel-controles h3 {
+      margin: 0 0 4px;
+      font-size: 0.9rem;
     }
-    #status span.error {
-      color:#f97373;
+    .panel-controles label {
+      display: block;
+      margin-bottom: 3px;
+    }
+    .panel-controles select {
+      width: 100%;
+      margin-bottom: 6px;
+    }
+    .panel-controles .filtros-entorno {
+      margin-top: 4px;
+      margin-bottom: 6px;
+    }
+    .panel-controles .filtros-entorno label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 2px;
+    }
+    .panel-controles button {
+      margin-top: 4px;
+      width: 100%;
+      border-radius: 6px;
+      border: none;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      background: #374151;
+      color: #f9fafb;
+    }
+
+    /* Panel flotante para leyenda (derecha) */
+    .panel-leyenda {
+      position: absolute;
+      top: 100px;
+      right: 10px;
+      background: rgba(0,0,0,0.8);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      max-width: 220px;
+      z-index: 1000;
+    }
+    .leyenda-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .color-circulo {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .color-frio { background: #3b82f6; }    /* azul */
+    .color-templado { background: #facc15; }/* amarillo */
+    .color-caliente { background: #ef4444; }/* rojo */
+
+    @media (max-width: 768px) {
+      .panel-controles,
+      .panel-leyenda {
+        top: auto;
+        bottom: 10px;
+      }
+      .panel-controles {
+        left: 10px;
+        right: 50%;
+      }
+      .panel-leyenda {
+        right: 10px;
+        left: 50%;
+      }
     }
   </style>
 </head>
 
 <body>
-<header>
-  <div class="header-left">
-    <h1>WebGIS – Islas de calor urbano</h1>
-    <p>Visor de reportes ciudadanos de temperatura en Chile (solo puntos aprobados).</p>
-    <span class="pill">Colores según temperatura reportada</span>
+  <header>
+    <div>
+      <h1>WebGIS – Islas de calor urbano</h1>
+      <p>Visor de reportes ciudadanos de temperatura en Chile (solo puntos aprobados).</p>
+    </div>
+    <button id="btn-aportar">📝 Aportar medición</button>
+  </header>
+
+  <div class="bar-info">
+    <span class="badge">
+      <span class="badge-label">Reportes totales:</span>
+      <strong id="total-reportes">0</strong>
+    </span>
+    <span class="badge">
+      <span class="badge-label">Aprobados:</span>
+      <strong id="total-aprobados">0</strong>
+    </span>
+    <span class="badge">
+      <span class="badge-label">Mostrando en el mapa:</span>
+      <strong id="total-mostrados">0</strong>
+    </span>
   </div>
 
-  <!-- Botón que abre el formulario en otra pestaña -->
-  <a class="btn-aportar" href="formulario.html" target="_blank" rel="noopener">
-    📝 Aportar medición
-  </a>
-</header>
+  <div id="map"></div>
 
-<div id="status">Cargando datos desde Firebase…</div>
-<div id="map"></div>
+  <!-- Panel de filtros -->
+  <div class="panel-controles">
+    <h3>Filtros</h3>
+    <label for="filtro-temp"><strong>Rango de temperatura</strong></label>
+    <select id="filtro-temp">
+      <option value="todos">Todos</option>
+      <option value="frio">Menos de 20 °C</option>
+      <option value="templado">20 a 27 °C</option>
+      <option value="caliente">Más de 27 °C</option>
+    </select>
 
-<script>
-  // ==============
-  // 1) Firebase
-  // ==============
-  const firebaseConfig = {
-    apiKey: "AIzaSyDxLCrOsxUPRBaD3SHwOpVQLWGxXZ971BU",
-    authDomain: "islas-de-calor-webgis.firebaseapp.com",
-    databaseURL: "https://islas-de-calor-webgis-default-rtdb.firebaseio.com",
-    projectId: "islas-de-calor-webgis",
-    storageBucket: "islas-de-calor-webgis.appspot.com",
-    messagingSenderId: "368570253562",
-    appId: "1:368570253562:web:5607156874c0139a090fcf",
-    measurementId: "G-1FBX7WE39F"
-  };
+    <div class="filtros-entorno">
+      <strong>Tipo de entorno</strong>
+      <label><input type="checkbox" class="chk-entorno" value="interior" checked> Interior vivienda</label>
+      <label><input type="checkbox" class="chk-entorno" value="exterior_vivienda" checked> Exterior vivienda</label>
+      <label><input type="checkbox" class="chk-entorno" value="no" checked> Espacio urbano</label>
+    </div>
 
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+    <button id="btn-limpiar">Quitar filtros</button>
+  </div>
 
-  // ==============
-  // 2) Mapa
-  // ==============
-  const map = L.map('map').setView([-33.5, -70.7], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+  <!-- Panel flotante de leyenda -->
+  <div class="panel-leyenda">
+    <strong>Colores según temperatura reportada</strong><br>
+    <div class="leyenda-item">
+      <span class="color-circulo color-frio"></span> Menos de 20 °C
+    </div>
+    <div class="leyenda-item">
+      <span class="color-circulo color-templado"></span> 20 a 27 °C
+    </div>
+    <div class="leyenda-item">
+      <span class="color-circulo color-caliente"></span> Más de 27 °C
+    </div>
+    <hr style="border-color:#333;">
+    <small>
+      Cada punto representa un reporte ciudadano.<br>
+      Solo se muestran reportes revisados y aprobados.
+    </small>
+  </div>
 
-  const markersLayer = L.layerGroup().addTo(map);
-  const statusEl = document.getElementById('status');
+  <!-- Firebase compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-  function colorPorTemperatura(t) {
-    const temp = parseFloat(t);
-    if (isNaN(temp)) return '#aaaaaa';
-    if (temp < 18)  return '#3b82f6'; // azul
-    if (temp < 25)  return '#22c55e'; // verde
-    if (temp < 30)  return '#f97316'; // naranjo
-    return '#ef4444';               // rojo
-  }
+  <script>
+    // CONFIGURACIÓN DE FIREBASE
+    const firebaseConfig = {
+      apiKey: "AIzaSyDxLCrOsxUPRBaD3SHwOpVQLWGxXZ971BU",
+      authDomain: "islas-de-calor-webgis.firebaseapp.com",
+      databaseURL: "https://islas-de-calor-webgis-default-rtdb.firebaseio.com",
+      projectId: "islas-de-calor-webgis",
+      storageBucket: "islas-de-calor-webgis.appspot.com",
+      messagingSenderId: "368570253562",
+      appId: "1:368570253562:web:5607156874c0139a090fcf",
+      measurementId: "G-1FBX7WE39F"
+    };
 
-  // ==============
-  // 3) Leer datos
-  // ==============
-  db.ref('reportes').on('value', (snapshot) => {
-    markersLayer.clearLayers();
-    const boundsPoints = [];
-    let total = 0;
-    let dibujados = 0;
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
 
-    snapshot.forEach(child => {
-      const r = child.val();
-      total++;
-
-      // Aceptar aprobado como booleano true o texto "true"
-      const aprobado = (r.aprobado === true || r.aprobado === "true");
-      if (!aprobado) return;
-
-      const lat = parseFloat(r.lat);
-      const lng = parseFloat(r.lng);
-      if (isNaN(lat) || isNaN(lng)) return;
-
-      const temp = r.temp ?? '';
-      const hum  = r.hum ?? '';
-      const perc = r.percepcion ?? '';
-      const sup  = r.superficie ?? '';
-      const sombra = r.sombra ?? '';
-      const esViv = r.es_vivienda ?? '';
-      const matViv = r.material_vivienda ?? '';
-      const desc = r.descripcion ?? '';
-      const fecha = r.fechaHora ?? '';
-      const sens = r.sensacion ?? '';
-
-      const color = colorPorTemperatura(temp);
-
-      const marker = L.circleMarker([lat, lng], {
-        radius: 8,
-        color: '#000',
-        weight: 1,
-        fillColor: color,
-        fillOpacity: 0.9
-      }).addTo(markersLayer);
-
-      const popupHtml = `
-        <strong>Temperatura:</strong> ${temp} °C<br>
-        <strong>Sensación térmica:</strong> ${sens} °C<br>
-        <strong>Humedad:</strong> ${hum} %<br>
-        <strong>Percepción térmica:</strong> ${perc}<br>
-        <strong>Fecha y hora:</strong> ${fecha}<br>
-        <hr>
-        <strong>Entorno:</strong> ${esViv || '-'}<br>
-        <strong>Material vivienda:</strong> ${matViv || '-'}<br>
-        <strong>Tipo de superficie:</strong> ${sup || '-'}<br>
-        <strong>Nivel de sombra:</strong> ${sombra || '-'}<br>
-        <hr>
-        <strong>Descripción:</strong><br>
-        <span style="font-size:0.85rem;">${desc || '(sin descripción)'}</span>
-      `;
-
-      marker.bindPopup(popupHtml);
-      boundsPoints.push([lat, lng]);
-      dibujados++;
+    // BOTÓN "APORTAR" → abre el formulario en nueva pestaña
+    document.getElementById('btn-aportar').addEventListener('click', () => {
+      window.open('formulario.html', '_blank');
     });
 
-    if (dibujados > 0) {
-      map.fitBounds(boundsPoints, { padding: [40, 40] });
-      statusEl.innerHTML =
-        `Reportes totales en la base: <strong>${total}</strong> · ` +
-        `Mostrando aprobados: <strong>${dibujados}</strong>.`;
-    } else {
-      statusEl.innerHTML =
-        `Reportes totales en la base: <strong>${total}</strong> · ` +
-        `No hay puntos aprobados o con coordenadas válidas.`;
+    // ----- MAPA -----
+    const map = L.map('map').setView([-35, -71], 5);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
+
+    L.control.scale({ imperial: false }).addTo(map);
+
+    let reportMarkers = [];
+    let allReports = [];   // acá guardamos todos los aprobados
+    let firstFit = true;
+
+    function getColorFromTemp(tempStr) {
+      if (!tempStr && tempStr !== 0) return '#9ca3af';
+      const t = parseFloat(tempStr);
+      if (isNaN(t)) return '#9ca3af';
+      if (t < 20) return '#3b82f6';
+      else if (t < 27) return '#facc15';
+      else return '#ef4444';
     }
-  }, (error) => {
-    console.error('Error leyendo Firebase:', error);
-    statusEl.innerHTML =
-      `<span class="error">Error al leer datos de Firebase: ${error.code || error.message}</span>`;
-  });
-</script>
+
+    function getTempClass(tempStr) {
+      const t = parseFloat(tempStr);
+      if (isNaN(t)) return 'nd';
+      if (t < 20) return 'frio';
+      if (t < 27) return 'templado';
+      return 'caliente';
+    }
+
+    function buildPopupContent(rep) {
+      let html = '';
+      html += `<strong>Temperatura:</strong> ${rep.temp ?? 'N/D'} °C<br>`;
+      if (rep.sensacion) {
+        html += `<strong>Sensación térmica:</strong> ${rep.sensacion} °C<br>`;
+      }
+      if (rep.hum) {
+        html += `<strong>Humedad:</strong> ${rep.hum} %<br>`;
+      }
+      if (rep.percepcion) {
+        html += `<strong>Percepción térmica:</strong> ${rep.percepcion}<br>`;
+      }
+      if (rep.fechaHora) {
+        html += `<strong>Fecha y hora:</strong> ${rep.fechaHora}<br>`;
+      }
+
+      html += `<hr>`;
+
+      html += `<strong>Entorno:</strong> ${rep.es_vivienda ?? '-'}<br>`;
+      html += `<strong>Material vivienda:</strong> ${rep.material_vivienda ?? '-'}<br>`;
+      html += `<strong>Tipo de superficie:</strong> ${rep.superficie || '-'}<br>`;
+      html += `<strong>Nivel de sombra:</strong> ${rep.sombra || '-'}<br>`;
+
+      if (rep.descripcion) {
+        html += `<hr><strong>Descripción:</strong><br>${rep.descripcion}`;
+      }
+
+      return html;
+    }
+
+    function actualizarContadores(totalBase, totalAprobados, mostrados) {
+      document.getElementById('total-reportes').textContent = totalBase;
+      document.getElementById('total-aprobados').textContent = totalAprobados;
+      document.getElementById('total-mostrados').textContent = mostrados;
+    }
+
+    function renderMarkers() {
+      // limpiar marcadores
+      reportMarkers.forEach(m => map.removeLayer(m));
+      reportMarkers = [];
+
+      const filtroTemp = document.getElementById('filtro-temp').value;
+      const checks = Array.from(document.querySelectorAll('.chk-entorno'));
+      const entornosActivos = checks
+        .filter(chk => chk.checked)
+        .map(chk => chk.value);
+
+      const bounds = [];
+
+      let mostrados = 0;
+
+      allReports.forEach(item => {
+        const rep = item.rep;
+
+        // filtro entorno
+        const ent = rep.es_vivienda || 'no';
+        if (!entornosActivos.includes(ent)) return;
+
+        // filtro temperatura
+        const claseTemp = getTempClass(rep.temp);
+        if (filtroTemp !== 'todos' && claseTemp !== filtroTemp) return;
+
+        const color = getColorFromTemp(rep.temp);
+
+        const marker = L.circleMarker([item.lat, item.lng], {
+          radius: 6,
+          color: color,
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 0.9
+        }).addTo(map);
+
+        marker.bindPopup(buildPopupContent(rep));
+        reportMarkers.push(marker);
+        bounds.push([item.lat, item.lng]);
+        mostrados++;
+      });
+
+      if (bounds.length && firstFit) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+        firstFit = false;
+      }
+
+      // actualizar solo el contador de mostrados (los otros se actualizan al leer Firebase)
+      const totalBase = parseInt(document.getElementById('total-reportes').textContent, 10) || 0;
+      const totalAprobados = parseInt(document.getElementById('total-aprobados').textContent, 10) || 0;
+      actualizarContadores(totalBase, totalAprobados, mostrados);
+    }
+
+    // Eventos de filtros
+    document.getElementById('filtro-temp').addEventListener('change', renderMarkers);
+    document.querySelectorAll('.chk-entorno').forEach(chk => {
+      chk.addEventListener('change', renderMarkers);
+    });
+    document.getElementById('btn-limpiar').addEventListener('click', () => {
+      document.getElementById('filtro-temp').value = 'todos';
+      document.querySelectorAll('.chk-entorno').forEach(chk => chk.checked = true);
+      renderMarkers();
+    });
+
+    // LEER DATOS DESDE FIREBASE
+    database.ref().on("value", (snapshot) => {
+      const datos = snapshot.val();
+      if (!datos) {
+        actualizarContadores(0, 0, 0);
+        return;
+      }
+
+      const reportes = datos.reportes ?? datos;
+
+      const ids = Object.keys(reportes);
+      const totalBase = ids.length;
+
+      allReports = [];
+      let totalAprobados = 0;
+
+      ids.forEach(id => {
+        const rep = reportes[id];
+        if (!rep || typeof rep !== 'object') return;
+
+        const aprobado =
+          rep.aprobado === true ||
+          rep.aprobado === 'true' ||
+          rep.aprobado === 'True' ||
+          rep.aprobado === 'TRUE' ||
+          rep.aprobado === 'si' ||
+          rep.aprobado === 'Si' ||
+          rep.aprobado === 'SI' ||
+          rep.aprobado === 1 ||
+          rep.aprobado === '1';
+
+        if (!aprobado) return;
+        totalAprobados++;
+
+        const lat = parseFloat(rep.lat ?? rep.latitude ?? rep.latitud);
+        const lng = parseFloat(rep.lng ?? rep.lon ?? rep.longitud ?? rep.longitude);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        allReports.push({ id, rep, lat, lng });
+      });
+
+      actualizarContadores(totalBase, totalAprobados, 0);
+      firstFit = true;
+      renderMarkers();
+    });
+  </script>
 
 </body>
 </html>
-
