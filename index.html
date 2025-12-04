@@ -16,11 +16,35 @@
     crossorigin=""
   ></script>
 
+  <!-- MarkerCluster -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+  />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <!-- MiniMap -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet-minimap/dist/Control.MiniMap.min.css"
+  />
+  <script src="https://unpkg.com/leaflet-minimap/dist/Control.MiniMap.min.js"></script>
+
+  <!-- Heatmap -->
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body {
       margin: 0;
       font-family: Arial, sans-serif;
-      background: #111;
+      background: #0b0b0f;
       color: #eee;
     }
     header {
@@ -59,7 +83,7 @@
       border-bottom: 1px solid #1f2937;
       display: flex;
       flex-wrap: wrap;
-      gap: 1rem;
+      gap: 0.75rem;
       align-items: center;
     }
     .badge {
@@ -85,10 +109,10 @@
       position: absolute;
       top: 100px;
       left: 10px;
-      background: rgba(0,0,0,0.85);
+      background: rgba(0,0,0,0.9);
       padding: 10px 12px;
       border-radius: 8px;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       line-height: 1.4;
       max-width: 260px;
       z-index: 1000;
@@ -126,16 +150,21 @@
       background: #374151;
       color: #f9fafb;
     }
+    .panel-controles .toggle-line {
+      margin-top: 4px;
+      border-top: 1px solid #1f2937;
+      padding-top: 4px;
+    }
 
     /* Panel flotante para leyenda (derecha) */
     .panel-leyenda {
       position: absolute;
       top: 100px;
-      right: 10px;
+      right: 270px;
       background: rgba(0,0,0,0.8);
       padding: 10px 12px;
       border-radius: 8px;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       line-height: 1.4;
       max-width: 220px;
       z-index: 1000;
@@ -154,6 +183,45 @@
     .color-frio { background: #3b82f6; }    /* azul */
     .color-templado { background: #facc15; }/* amarillo */
     .color-caliente { background: #ef4444; }/* rojo */
+
+    /* Panel de gráficos (extremo derecho) */
+    .panel-graficos {
+      position: absolute;
+      top: 100px;
+      right: 10px;
+      width: 250px;
+      background: rgba(15,23,42,0.96);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .panel-graficos h3 {
+      margin: 0 0 2px;
+      font-size: 0.9rem;
+    }
+    .grafico-box {
+      background: #020617;
+      border-radius: 6px;
+      padding: 4px;
+      border: 1px solid #1f2937;
+    }
+    .grafico-box canvas {
+      width: 100% !important;
+      height: 120px !important;
+    }
+
+    @media (max-width: 1024px) {
+      .panel-graficos {
+        display: none; /* en pantallas chicas, ocultamos gráficos para no saturar */
+      }
+      .panel-leyenda {
+        right: 10px;
+      }
+    }
 
     @media (max-width: 768px) {
       .panel-controles,
@@ -195,6 +263,22 @@
       <span class="badge-label">Mostrando en el mapa:</span>
       <strong id="total-mostrados">0</strong>
     </span>
+    <span class="badge">
+      <span class="badge-label">T° promedio:</span>
+      <strong id="kpi-promedio">-</strong>
+    </span>
+    <span class="badge">
+      <span class="badge-label">T° máx:</span>
+      <strong id="kpi-max">-</strong>
+    </span>
+    <span class="badge">
+      <span class="badge-label">T° mín:</span>
+      <strong id="kpi-min">-</strong>
+    </span>
+    <span class="badge">
+      <span class="badge-label">% sombra alta:</span>
+      <strong id="kpi-sombra-alta">-</strong>
+    </span>
   </div>
 
   <div id="map"></div>
@@ -202,6 +286,7 @@
   <!-- Panel de filtros -->
   <div class="panel-controles">
     <h3>Filtros</h3>
+
     <label for="filtro-temp"><strong>Rango de temperatura</strong></label>
     <select id="filtro-temp">
       <option value="todos">Todos</option>
@@ -217,7 +302,63 @@
       <label><input type="checkbox" class="chk-entorno" value="no" checked> Espacio urbano</label>
     </div>
 
+    <label for="filtro-sombra"><strong>Nivel de sombra</strong></label>
+    <select id="filtro-sombra">
+      <option value="todas">Todas</option>
+      <option value="sin">Sin sombra</option>
+      <option value="parcial">Sombra parcial</option>
+      <option value="alta">Sombra alta</option>
+    </select>
+
+    <label for="filtro-material"><strong>Material vivienda</strong></label>
+    <select id="filtro-material">
+      <option value="todos">Todos</option>
+      <!-- opciones se llenan dinámicamente -->
+    </select>
+
+    <label for="filtro-mes"><strong>Mes</strong></label>
+    <select id="filtro-mes">
+      <option value="0">Todos</option>
+      <option value="1">Enero</option>
+      <option value="2">Febrero</option>
+      <option value="3">Marzo</option>
+      <option value="4">Abril</option>
+      <option value="5">Mayo</option>
+      <option value="6">Junio</option>
+      <option value="7">Julio</option>
+      <option value="8">Agosto</option>
+      <option value="9">Septiembre</option>
+      <option value="10">Octubre</option>
+      <option value="11">Noviembre</option>
+      <option value="12">Diciembre</option>
+    </select>
+
+    <label for="filtro-dia"><strong>Día de la semana</strong></label>
+    <select id="filtro-dia">
+      <option value="-1">Todos</option>
+      <option value="1">Lunes</option>
+      <option value="2">Martes</option>
+      <option value="3">Miércoles</option>
+      <option value="4">Jueves</option>
+      <option value="5">Viernes</option>
+      <option value="6">Sábado</option>
+      <option value="0">Domingo</option>
+    </select>
+
+    <label for="filtro-tramo"><strong>Tramo horario</strong></label>
+    <select id="filtro-tramo">
+      <option value="todos">Todos</option>
+      <option value="madrugada">Madrugada (0–6 h)</option>
+      <option value="manana">Mañana (6–12 h)</option>
+      <option value="tarde">Tarde (12–18 h)</option>
+      <option value="noche">Noche (18–24 h)</option>
+    </select>
+
     <button id="btn-limpiar">Quitar filtros</button>
+
+    <div class="toggle-line">
+      <label><input type="checkbox" id="chk-heat" /> Ver mapa de calor</label>
+    </div>
   </div>
 
   <!-- Panel flotante de leyenda -->
@@ -237,6 +378,26 @@
       Cada punto representa un reporte ciudadano.<br>
       Solo se muestran reportes revisados y aprobados.
     </small>
+  </div>
+
+  <!-- Panel de gráficos -->
+  <div class="panel-graficos">
+    <h3>Análisis visual</h3>
+
+    <div class="grafico-box">
+      <small>Histograma de temperaturas (°C)</small>
+      <canvas id="chart-temp"></canvas>
+    </div>
+
+    <div class="grafico-box">
+      <small>Distribución de entornos</small>
+      <canvas id="chart-entorno"></canvas>
+    </div>
+
+    <div class="grafico-box">
+      <small>Conteo por hora del día</small>
+      <canvas id="chart-hora"></canvas>
+    </div>
   </div>
 
   <!-- Firebase compat SDK -->
@@ -267,15 +428,31 @@
     // ----- MAPA -----
     const map = L.map('map').setView([-35, -71], 5);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19
     }).addTo(map);
 
     L.control.scale({ imperial: false }).addTo(map);
 
-    let reportMarkers = [];
-    let allReports = [];   // acá guardamos todos los aprobados
+    // MiniMap
+    const miniLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      minZoom: 0,
+      maxZoom: 19
+    });
+    new L.Control.MiniMap(miniLayer, { toggleDisplay: true }).addTo(map);
+
+    // Cluster y Heat
+    const clusterGroup = L.markerClusterGroup();
+    map.addLayer(clusterGroup);
+    let heatLayer = null;
+
+    let allReports = [];   // todos los aprobados con info extra
     let firstFit = true;
+
+    // Chart.js instances
+    let chartTemp = null;
+    let chartEntorno = null;
+    let chartHora = null;
 
     function getColorFromTemp(tempStr) {
       if (!tempStr && tempStr !== 0) return '#9ca3af';
@@ -292,6 +469,15 @@
       if (t < 20) return 'frio';
       if (t < 27) return 'templado';
       return 'caliente';
+    }
+
+    function clasificarSombra(s) {
+      if (!s) return 'otra';
+      const txt = String(s).toLowerCase();
+      if (txt.includes('sin')) return 'sin';
+      if (txt.includes('parcial')) return 'parcial';
+      if (txt.includes('alta')) return 'alta';
+      return 'otra';
     }
 
     // 🔴 DESCRIPCIÓN OCULTA: solo info relevante + mensaje genérico
@@ -318,7 +504,6 @@
       html += `<strong>Tipo de superficie:</strong> ${rep.superficie || '-'}<br>`;
       html += `<strong>Nivel de sombra:</strong> ${rep.sombra || '-'}<br>`;
 
-      // 👇 Ya NO se muestra rep.descripcion (solo admin la ve en Firebase)
       html += `<hr><em>Reporte ciudadano validado</em>`;
 
       return html;
@@ -330,31 +515,55 @@
       document.getElementById('total-mostrados').textContent = mostrados;
     }
 
-    function renderMarkers() {
-      // limpiar marcadores
-      reportMarkers.forEach(m => map.removeLayer(m));
-      reportMarkers = [];
+    function actualizarKpis(reports) {
+      if (!reports.length) {
+        document.getElementById('kpi-promedio').textContent = '-';
+        document.getElementById('kpi-max').textContent = '-';
+        document.getElementById('kpi-min').textContent = '-';
+        document.getElementById('kpi-sombra-alta').textContent = '-';
+        return;
+      }
 
-      const filtroTemp = document.getElementById('filtro-temp').value;
-      const checks = Array.from(document.querySelectorAll('.chk-entorno'));
-      const entornosActivos = checks
-        .filter(chk => chk.checked)
-        .map(chk => chk.value);
+      const temps = reports
+        .map(r => parseFloat(r.rep.temp))
+        .filter(t => !isNaN(t));
 
+      if (temps.length) {
+        const sum = temps.reduce((a,b) => a + b, 0);
+        const avg = sum / temps.length;
+        const max = Math.max(...temps);
+        const min = Math.min(...temps);
+        document.getElementById('kpi-promedio').textContent = avg.toFixed(1) + ' °C';
+        document.getElementById('kpi-max').textContent = max.toFixed(1) + ' °C';
+        document.getElementById('kpi-min').textContent = min.toFixed(1) + ' °C';
+      } else {
+        document.getElementById('kpi-promedio').textContent = '-';
+        document.getElementById('kpi-max').textContent = '-';
+        document.getElementById('kpi-min').textContent = '-';
+      }
+
+      const sombras = reports
+        .map(r => clasificarSombra(r.rep.sombra))
+        .filter(s => s === 'alta' || s === 'parcial' || s === 'sin');
+      if (sombras.length) {
+        const alta = sombras.filter(s => s === 'alta').length;
+        const pct = (alta / sombras.length) * 100;
+        document.getElementById('kpi-sombra-alta').textContent = pct.toFixed(0) + ' %';
+      } else {
+        document.getElementById('kpi-sombra-alta').textContent = '-';
+      }
+    }
+
+    function renderMarkersAndHeat(filtered) {
+      // limpiar cluster
+      clusterGroup.clearLayers();
       const bounds = [];
       let mostrados = 0;
 
-      allReports.forEach(item => {
+      const heatData = [];
+
+      filtered.forEach(item => {
         const rep = item.rep;
-
-        // filtro entorno
-        const ent = rep.es_vivienda || 'no';
-        if (!entornosActivos.includes(ent)) return;
-
-        // filtro temperatura
-        const claseTemp = getTempClass(rep.temp);
-        if (filtroTemp !== 'todos' && claseTemp !== filtroTemp) return;
-
         const color = getColorFromTemp(rep.temp);
 
         const marker = L.circleMarker([item.lat, item.lng], {
@@ -363,12 +572,16 @@
           weight: 2,
           fillColor: color,
           fillOpacity: 0.9
-        }).addTo(map);
+        });
 
         marker.bindPopup(buildPopupContent(rep));
-        reportMarkers.push(marker);
+        clusterGroup.addLayer(marker);
         bounds.push([item.lat, item.lng]);
         mostrados++;
+
+        const tempVal = parseFloat(rep.temp);
+        const intensidad = isNaN(tempVal) ? 0.5 : (tempVal / 40); // escala simple
+        heatData.push([item.lat, item.lng, intensidad]);
       });
 
       if (bounds.length && firstFit) {
@@ -376,20 +589,227 @@
         firstFit = false;
       }
 
+      // Heatmap
+      if (heatLayer) {
+        map.removeLayer(heatLayer);
+        heatLayer = null;
+      }
+      const chkHeat = document.getElementById('chk-heat');
+      if (chkHeat.checked && heatData.length) {
+        heatLayer = L.heatLayer(heatData, { radius: 25, blur: 15, maxZoom: 17 });
+        heatLayer.addTo(map);
+      }
+
       const totalBase = parseInt(document.getElementById('total-reportes').textContent, 10) || 0;
       const totalAprobados = parseInt(document.getElementById('total-aprobados').textContent, 10) || 0;
       actualizarContadores(totalBase, totalAprobados, mostrados);
+
+      actualizarKpis(filtered);
+      actualizarGraficos(filtered);
+    }
+
+    function filtrarReports() {
+      const filtroTemp = document.getElementById('filtro-temp').value;
+      const checks = Array.from(document.querySelectorAll('.chk-entorno'));
+      const entornosActivos = checks
+        .filter(chk => chk.checked)
+        .map(chk => chk.value);
+
+      const filtroSombra = document.getElementById('filtro-sombra').value;
+      const filtroMaterial = document.getElementById('filtro-material').value;
+      const filtroMes = parseInt(document.getElementById('filtro-mes').value, 10);
+      const filtroDia = parseInt(document.getElementById('filtro-dia').value, 10);
+      const filtroTramo = document.getElementById('filtro-tramo').value;
+
+      return allReports.filter(item => {
+        const rep = item.rep;
+
+        // entorno
+        const ent = rep.es_vivienda || 'no';
+        if (!entornosActivos.includes(ent)) return false;
+
+        // temperatura
+        const claseTemp = getTempClass(rep.temp);
+        if (filtroTemp !== 'todos' && claseTemp !== filtroTemp) return false;
+
+        // sombra
+        const claseSombra = clasificarSombra(rep.sombra);
+        if (filtroSombra !== 'todas' && claseSombra !== filtroSombra) return false;
+
+        // material
+        if (filtroMaterial !== 'todos') {
+          if (!rep.material_vivienda || rep.material_vivienda !== filtroMaterial) return false;
+        }
+
+        // mes
+        if (filtroMes !== 0 && item.month !== filtroMes) return false;
+
+        // día semana
+        if (filtroDia !== -1 && item.dow !== filtroDia) return false;
+
+        // tramo horario
+        if (filtroTramo !== 'todos') {
+          const h = item.hour;
+          if (h == null) return false;
+          if (filtroTramo === 'madrugada' && !(h >= 0 && h < 6)) return false;
+          if (filtroTramo === 'manana' && !(h >= 6 && h < 12)) return false;
+          if (filtroTramo === 'tarde' && !(h >= 12 && h < 18)) return false;
+          if (filtroTramo === 'noche' && !(h >= 18 && h < 24)) return false;
+        }
+
+        return true;
+      });
+    }
+
+    function actualizarGraficos(reports) {
+      const temps = reports
+        .map(r => parseFloat(r.rep.temp))
+        .filter(t => !isNaN(t));
+
+      // Histograma temperaturas (bins simples)
+      const bins = [0,5,10,15,20,25,30,35,40];
+      const binLabels = [];
+      const binCounts = new Array(bins.length - 1).fill(0);
+      for (let i = 0; i < bins.length - 1; i++) {
+        binLabels.push(`${bins[i]}–${bins[i+1]}°`);
+      }
+      temps.forEach(t => {
+        for (let i = 0; i < bins.length - 1; i++) {
+          if (t >= bins[i] && t < bins[i+1]) {
+            binCounts[i]++;
+            break;
+          }
+        }
+      });
+
+      // Entorno
+      const entCounts = { interior: 0, exterior_vivienda: 0, no: 0 };
+      reports.forEach(r => {
+        const ent = r.rep.es_vivienda || 'no';
+        if (entCounts[ent] != null) entCounts[ent]++;
+      });
+
+      // Hora
+      const horas = new Array(24).fill(0);
+      reports.forEach(r => {
+        if (r.hour != null) horas[r.hour]++;
+      });
+
+      // Crear o actualizar gráficos
+      const ctxTemp = document.getElementById('chart-temp').getContext('2d');
+      const ctxEnt = document.getElementById('chart-entorno').getContext('2d');
+      const ctxHora = document.getElementById('chart-hora').getContext('2d');
+
+      if (!chartTemp) {
+        chartTemp = new Chart(ctxTemp, {
+          type: 'bar',
+          data: {
+            labels: binLabels,
+            datasets: [{
+              label: 'N° reportes',
+              data: binCounts
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { x: { ticks: { font: { size: 8 } } } }
+          }
+        });
+      } else {
+        chartTemp.data.labels = binLabels;
+        chartTemp.data.datasets[0].data = binCounts;
+        chartTemp.update();
+      }
+
+      if (!chartEntorno) {
+        chartEntorno = new Chart(ctxEnt, {
+          type: 'pie',
+          data: {
+            labels: ['Interior', 'Exterior vivienda', 'Espacio urbano'],
+            datasets: [{
+              data: [
+                entCounts.interior,
+                entCounts.exterior_vivienda,
+                entCounts.no
+              ]
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 8 } } } }
+          }
+        });
+      } else {
+        chartEntorno.data.datasets[0].data = [
+          entCounts.interior,
+          entCounts.exterior_vivienda,
+          entCounts.no
+        ];
+        chartEntorno.update();
+      }
+
+      if (!chartHora) {
+        chartHora = new Chart(ctxHora, {
+          type: 'line',
+          data: {
+            labels: Array.from({length:24}, (_,i)=>i.toString()),
+            datasets: [{
+              label: 'N° reportes',
+              data: horas
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display:false } },
+            scales: { x: { title: { display:true, text:'Hora del día' } } }
+          }
+        });
+      } else {
+        chartHora.data.datasets[0].data = horas;
+        chartHora.update();
+      }
     }
 
     // Eventos de filtros
-    document.getElementById('filtro-temp').addEventListener('change', renderMarkers);
-    document.querySelectorAll('.chk-entorno').forEach(chk => {
-      chk.addEventListener('change', renderMarkers);
+    document.getElementById('filtro-temp').addEventListener('change', () => {
+      renderMarkersAndHeat(filtrarReports());
     });
+    document.querySelectorAll('.chk-entorno').forEach(chk => {
+      chk.addEventListener('change', () => {
+        renderMarkersAndHeat(filtrarReports());
+      });
+    });
+    document.getElementById('filtro-sombra').addEventListener('change', () => {
+      renderMarkersAndHeat(filtrarReports());
+    });
+    document.getElementById('filtro-material').addEventListener('change', () => {
+      renderMarkersAndHeat(filtrarReports());
+    });
+    document.getElementById('filtro-mes').addEventListener('change', () => {
+      renderMarkersAndHeat(filtrarReports());
+    });
+    document.getElementById('filtro-dia').addEventListener('change', () => {
+      renderMarkersAndHeat(filtrarReports());
+    });
+    document.getElementById('filtro-tramo').addEventListener('change', () => {
+      renderMarkersAndHeat(filtrarReports());
+    });
+    document.getElementById('chk-heat').addEventListener('change', () => {
+      renderMarkersAndHeat(filtrarReports());
+    });
+
     document.getElementById('btn-limpiar').addEventListener('click', () => {
       document.getElementById('filtro-temp').value = 'todos';
       document.querySelectorAll('.chk-entorno').forEach(chk => chk.checked = true);
-      renderMarkers();
+      document.getElementById('filtro-sombra').value = 'todas';
+      document.getElementById('filtro-material').value = 'todos';
+      document.getElementById('filtro-mes').value = '0';
+      document.getElementById('filtro-dia').value = '-1';
+      document.getElementById('filtro-tramo').value = 'todos';
+      document.getElementById('chk-heat').checked = false;
+      firstFit = true;
+      renderMarkersAndHeat(filtrarReports());
     });
 
     // LEER DATOS DESDE FIREBASE
@@ -397,6 +817,8 @@
       const datos = snapshot.val();
       if (!datos) {
         actualizarContadores(0, 0, 0);
+        actualizarKpis([]);
+        actualizarGraficos([]);
         return;
       }
 
@@ -407,6 +829,7 @@
 
       allReports = [];
       let totalAprobados = 0;
+      const materialesSet = new Set();
 
       ids.forEach(id => {
         const rep = reportes[id];
@@ -430,12 +853,57 @@
         const lng = parseFloat(rep.lng ?? rep.lon ?? rep.longitud ?? rep.longitude);
         if (isNaN(lat) || isNaN(lng)) return;
 
-        allReports.push({ id, rep, lat, lng });
+        // parse fecha
+        let month = null, dow = null, hour = null;
+        if (rep.fechaHora) {
+          let d = new Date(rep.fechaHora);
+          if (isNaN(d)) {
+            // intento manual: "YYYY-MM-DD HH:MM"
+            const partes = String(rep.fechaHora).replace('T',' ').split(' ');
+            if (partes[0]) {
+              const [y,m,da] = partes[0].split('-').map(Number);
+              if (!isNaN(y) && !isNaN(m) && !isNaN(da)) {
+                if (partes[1]) {
+                  const [hh,mm] = partes[1].split(':').map(Number);
+                  d = new Date(y, m-1, da, hh||0, mm||0);
+                } else {
+                  d = new Date(y, m-1, da);
+                }
+              }
+            }
+          }
+          if (!isNaN(d)) {
+            month = d.getMonth() + 1;
+            dow = d.getDay();
+            hour = d.getHours();
+          }
+        }
+
+        if (rep.material_vivienda) {
+          materialesSet.add(rep.material_vivienda);
+        }
+
+        allReports.push({ id, rep, lat, lng, month, dow, hour });
       });
+
+      // llenar select de materiales
+      const selMat = document.getElementById('filtro-material');
+      const valorActual = selMat.value;
+      selMat.innerHTML = '<option value="todos">Todos</option>';
+      Array.from(materialesSet).sort().forEach(mat => {
+        const opt = document.createElement('option');
+        opt.value = mat;
+        opt.textContent = mat;
+        selMat.appendChild(opt);
+      });
+      if (Array.from(materialesSet).includes(valorActual)) {
+        selMat.value = valorActual;
+      }
 
       actualizarContadores(totalBase, totalAprobados, 0);
       firstFit = true;
-      renderMarkers();
+      const filtrados = filtrarReports();
+      renderMarkersAndHeat(filtrados);
     });
   </script>
 
