@@ -518,7 +518,7 @@
 
       // EXTERIOR VIVIENDA
       } else if (tipo === 'exterior_vivienda') {
-        html += `<strong>Ubicación del punto:</strong> Exterior cercano a vivienda (patio, antejardín, etc.)<br>`;
+        html += `<strong>Ubicación del punto:</strong> Exterior cercano a vivienda<br>`;
         if (rep.material_vivienda) {
           html += `<strong>Material de la vivienda cercana:</strong> ${rep.material_vivienda}<br>`;
         }
@@ -531,7 +531,7 @@
 
       // ESPACIO URBANO
       } else {
-        html += `<strong>Ubicación del punto:</strong> Espacio exterior urbano (calle, plaza, vereda, etc.)<br>`;
+        html += `<strong>Ubicación del punto:</strong> Espacio exterior urbano<br>`;
         if (rep.superficie) {
           html += `<strong>Tipo de superficie:</strong> ${rep.superficie}<br>`;
         }
