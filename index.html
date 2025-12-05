@@ -480,9 +480,11 @@
       return 'otra';
     }
 
-    // 🔴 DESCRIPCIÓN OCULTA: solo info relevante + mensaje genérico
+    // 🔴 POPUP CONTEXTUAL: muestra solo info que tiene sentido según tipo de punto
     function buildPopupContent(rep) {
       let html = '';
+
+      // Bloque climático
       html += `<strong>Temperatura:</strong> ${rep.temp ?? 'N/D'} °C<br>`;
       if (rep.sensacion) {
         html += `<strong>Sensación térmica:</strong> ${rep.sensacion} °C<br>`;
@@ -499,10 +501,44 @@
 
       html += `<hr>`;
 
-      html += `<strong>Entorno:</strong> ${rep.es_vivienda ?? '-'}<br>`;
-      html += `<strong>Material vivienda:</strong> ${rep.material_vivienda ?? '-'}<br>`;
-      html += `<strong>Tipo de superficie:</strong> ${rep.superficie || '-'}<br>`;
-      html += `<strong>Nivel de sombra:</strong> ${rep.sombra || '-'}<br>`;
+      const tipo = rep.es_vivienda || 'no';
+
+      // INTERIOR
+      if (tipo === 'interior') {
+        html += `<strong>Ubicación del punto:</strong> Interior de una vivienda<br>`;
+        if (rep.material_vivienda) {
+          html += `<strong>Material de la vivienda:</strong> ${rep.material_vivienda}<br>`;
+        }
+        if (rep.superficie) {
+          html += `<strong>Tipo de superficie cercana:</strong> ${rep.superficie}<br>`;
+        }
+        if (rep.sombra) {
+          html += `<strong>Nivel de sombra (interior):</strong> ${rep.sombra}<br>`;
+        }
+
+      // EXTERIOR VIVIENDA
+      } else if (tipo === 'exterior_vivienda') {
+        html += `<strong>Ubicación del punto:</strong> Exterior cercano a vivienda (patio, antejardín, etc.)<br>`;
+        if (rep.material_vivienda) {
+          html += `<strong>Material de la vivienda cercana:</strong> ${rep.material_vivienda}<br>`;
+        }
+        if (rep.superficie) {
+          html += `<strong>Tipo de superficie:</strong> ${rep.superficie}<br>`;
+        }
+        if (rep.sombra) {
+          html += `<strong>Nivel de sombra:</strong> ${rep.sombra}<br>`;
+        }
+
+      // ESPACIO URBANO
+      } else {
+        html += `<strong>Ubicación del punto:</strong> Espacio exterior urbano (calle, plaza, vereda, etc.)<br>`;
+        if (rep.superficie) {
+          html += `<strong>Tipo de superficie:</strong> ${rep.superficie}<br>`;
+        }
+        if (rep.sombra) {
+          html += `<strong>Nivel de sombra:</strong> ${rep.sombra}<br>`;
+        }
+      }
 
       html += `<hr><em>Reporte ciudadano validado</em>`;
 
@@ -555,7 +591,6 @@
     }
 
     function renderMarkersAndHeat(filtered) {
-      // limpiar cluster
       clusterGroup.clearLayers();
       const bounds = [];
       let mostrados = 0;
@@ -580,7 +615,7 @@
         mostrados++;
 
         const tempVal = parseFloat(rep.temp);
-        const intensidad = isNaN(tempVal) ? 0.5 : (tempVal / 40); // escala simple
+        const intensidad = isNaN(tempVal) ? 0.5 : (tempVal / 40);
         heatData.push([item.lat, item.lng, intensidad]);
       });
 
@@ -589,7 +624,6 @@
         firstFit = false;
       }
 
-      // Heatmap
       if (heatLayer) {
         map.removeLayer(heatLayer);
         heatLayer = null;
@@ -624,30 +658,23 @@
       return allReports.filter(item => {
         const rep = item.rep;
 
-        // entorno
         const ent = rep.es_vivienda || 'no';
         if (!entornosActivos.includes(ent)) return false;
 
-        // temperatura
         const claseTemp = getTempClass(rep.temp);
         if (filtroTemp !== 'todos' && claseTemp !== filtroTemp) return false;
 
-        // sombra
         const claseSombra = clasificarSombra(rep.sombra);
         if (filtroSombra !== 'todas' && claseSombra !== filtroSombra) return false;
 
-        // material
         if (filtroMaterial !== 'todos') {
           if (!rep.material_vivienda || rep.material_vivienda !== filtroMaterial) return false;
         }
 
-        // mes
         if (filtroMes !== 0 && item.month !== filtroMes) return false;
 
-        // día semana
         if (filtroDia !== -1 && item.dow !== filtroDia) return false;
 
-        // tramo horario
         if (filtroTramo !== 'todos') {
           const h = item.hour;
           if (h == null) return false;
@@ -666,7 +693,6 @@
         .map(r => parseFloat(r.rep.temp))
         .filter(t => !isNaN(t));
 
-      // Histograma temperaturas (bins simples)
       const bins = [0,5,10,15,20,25,30,35,40];
       const binLabels = [];
       const binCounts = new Array(bins.length - 1).fill(0);
@@ -682,20 +708,17 @@
         }
       });
 
-      // Entorno
       const entCounts = { interior: 0, exterior_vivienda: 0, no: 0 };
       reports.forEach(r => {
         const ent = r.rep.es_vivienda || 'no';
         if (entCounts[ent] != null) entCounts[ent]++;
       });
 
-      // Hora
       const horas = new Array(24).fill(0);
       reports.forEach(r => {
         if (r.hour != null) horas[r.hour]++;
       });
 
-      // Crear o actualizar gráficos
       const ctxTemp = document.getElementById('chart-temp').getContext('2d');
       const ctxEnt = document.getElementById('chart-entorno').getContext('2d');
       const ctxHora = document.getElementById('chart-hora').getContext('2d');
@@ -713,7 +736,15 @@
           options: {
             responsive: true,
             plugins: { legend: { display: false } },
-            scales: { x: { ticks: { font: { size: 8 } } } }
+            scales: { 
+              x: { 
+                ticks: { font: { size: 8 }, color: '#e5e7eb' },
+                title: { display:false }
+              },
+              y: {
+                ticks: { color: '#e5e7eb' }
+              }
+            }
           }
         });
       } else {
@@ -723,42 +754,41 @@
       }
 
       if (!chartEntorno) {
-  chartEntorno = new Chart(ctxEnt, {
-    type: 'pie',
-    data: {
-      labels: ['Interior', 'Exterior vivienda', 'Espacio urbano'],
-      datasets: [{
-        data: [
+        chartEntorno = new Chart(ctxEnt, {
+          type: 'pie',
+          data: {
+            labels: ['Interior', 'Exterior vivienda', 'Espacio urbano'],
+            datasets: [{
+              data: [
+                entCounts.interior,
+                entCounts.exterior_vivienda,
+                entCounts.no
+              ]
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {
+                  color: '#e5e7eb',
+                  font: { size: 10 },
+                  boxWidth: 14,
+                  padding: 8
+                }
+              }
+            }
+          }
+        });
+      } else {
+        chartEntorno.data.datasets[0].data = [
           entCounts.interior,
           entCounts.exterior_vivienda,
           entCounts.no
-        ]
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: {
-            color: '#e5e7eb',        // texto clarito (tailwind gray-200)
-            font: { size: 10 },      // un poco más grande
-            boxWidth: 14,
-            padding: 8
-          }
-        }
+        ];
+        chartEntorno.update();
       }
-    }
-  });
-} else {
-  chartEntorno.data.datasets[0].data = [
-    entCounts.interior,
-    entCounts.exterior_vivienda,
-    entCounts.no
-  ];
-  chartEntorno.update();
-}
-
 
       if (!chartHora) {
         chartHora = new Chart(ctxHora, {
@@ -773,7 +803,15 @@
           options: {
             responsive: true,
             plugins: { legend: { display:false } },
-            scales: { x: { title: { display:true, text:'Hora del día' } } }
+            scales: { 
+              x: { 
+                title: { display:true, text:'Hora del día', color:'#e5e7eb' },
+                ticks: { color:'#e5e7eb' }
+              },
+              y: {
+                ticks: { color:'#e5e7eb' }
+              }
+            }
           }
         });
       } else {
@@ -864,12 +902,10 @@
         const lng = parseFloat(rep.lng ?? rep.lon ?? rep.longitud ?? rep.longitude);
         if (isNaN(lat) || isNaN(lng)) return;
 
-        // parse fecha
         let month = null, dow = null, hour = null;
         if (rep.fechaHora) {
           let d = new Date(rep.fechaHora);
           if (isNaN(d)) {
-            // intento manual: "YYYY-MM-DD HH:MM"
             const partes = String(rep.fechaHora).replace('T',' ').split(' ');
             if (partes[0]) {
               const [y,m,da] = partes[0].split('-').map(Number);
@@ -897,7 +933,6 @@
         allReports.push({ id, rep, lat, lng, month, dow, hour });
       });
 
-      // llenar select de materiales
       const selMat = document.getElementById('filtro-material');
       const valorActual = selMat.value;
       selMat.innerHTML = '<option value="todos">Todos</option>';
@@ -920,4 +955,3 @@
 
 </body>
 </html>
-
